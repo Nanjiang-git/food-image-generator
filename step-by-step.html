@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI美食海报生成器 - 分步优化</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #f97316;
+            --primary-dark: #ea580c;
+            --accent: #fb923c;
+            --bg-dark: #0c0a09;
+            --bg-card: #1c1917;
+            --bg-input: #292524;
+            --text-primary: #fafaf9;
+            --text-secondary: #a8a29e;
+            --border: #44403c;
+            --success: #22c55e;
+            --warning: #eab308;
+        }
+        
+        * {
+            font-family: 'Noto Sans SC', sans-serif;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: var(--bg-dark);
+            background-image: 
+                radial-gradient(ellipse at top left, rgba(249, 115, 22, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at bottom right, rgba(251, 146, 60, 0.05) 0%, transparent 50%);
+            min-height: 100vh;
+        }
+        
+        .gradient-btn {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .gradient-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(249, 115, 22, 0.4);
+        }
+        
+        .gradient-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .input-field {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+        }
+        
+        .input-field::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        .step-indicator {
+            transition: all 0.3s ease;
+        }
+        
+        .step-indicator.active {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            transform: scale(1.1);
+        }
+        
+        .step-indicator.completed {
+            background: var(--success);
+            color: white;
+        }
+        
+        .step-indicator.pending {
+            background: var(--bg-input);
+            color: var(--text-secondary);
+        }
+        
+        .progress-bar {
+            background: var(--bg-input);
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+            transition: width 0.5s ease;
+        }
+        
+        .result-image {
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .loading-pulse {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        .spinner {
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .glass-card {
+            background: rgba(28, 25, 23, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+        }
+        
+        .admin-badge {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        
+        .step-card {
+            transition: all 0.3s ease;
+        }
+        
+        .step-card.active {
+            border-color: var(--primary);
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.2);
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="text-stone-100">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent mb-2">
+                AI美食海报生成器
+            </h1>
+            <p class="text-stone-400">输入菜品信息，AI自动完成5轮优化生成精美海报</p>
+        </header>
+
+        <div class="grid lg:grid-cols-2 gap-8">
+            <div class="space-y-6">
+                <div class="glass-card rounded-2xl p-6">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                        输入菜品信息
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">菜品名称 *</label>
+                            <input type="text" id="dishName" 
+                                class="input-field w-full px-4 py-3 rounded-xl text-sm"
+                                placeholder="例如：红烧肉、糖醋排骨、麻婆豆腐">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">菜品描述（可选）</label>
+                            <textarea id="dishDesc" rows="3" 
+                                class="input-field w-full px-4 py-3 rounded-xl text-sm resize-none"
+                                placeholder="描述菜品特点，如：色泽红亮、肥而不腻、入口即化..."></textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">风格偏好（可选）</label>
+                            <select id="styleSelect" class="input-field w-full px-4 py-3 rounded-xl text-sm">
+                                <option value="default">默认（专业美食摄影）</option>
+                                <option value="warm">温馨居家风</option>
+                                <option value="highend">高端餐厅风</option>
+                                <option value="traditional">传统中式风</option>
+                                <option value="modern">现代简约风</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">营销文案（可选）</label>
+                            <input type="text" id="marketingText" 
+                                class="input-field w-full px-4 py-3 rounded-xl text-sm"
+                                placeholder="例如：限时特惠、新品上市、招牌必点">
+                        </div>
+                        
+                        <button id="generateBtn" class="gradient-btn w-full py-4 px-6 rounded-xl font-semibold text-white flex items-center justify-center gap-2 mt-4">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            开始生成图片
+                        </button>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-2xl p-6">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        生成进度
+                    </h2>
+                    
+                    <div class="progress-bar h-2 rounded-full mb-6">
+                        <div id="progressFill" class="progress-fill h-full rounded-full" style="width: 0%"></div>
+                    </div>
+                    
+                    <div class="space-y-3" id="stepsContainer">
+                        <div class="step-card flex items-center gap-3 p-3 rounded-xl bg-stone-900/50 border border-stone-800" data-step="1">
+                            <div class="step-indicator pending w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium">1</div>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">菜品主体生成</p>
+                                <p class="text-xs text-stone-500">基础底图</p>
+                            </div>
+                            <span class="step-status text-xs text-stone-500">等待中</span>
+                        </div>
+                        
+                        <div class="step-card flex items-center gap-3 p-3 rounded-xl bg-stone-900/50 border border-stone-800" data-step="2">
+                            <div class="step-indicator pending w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium">2</div>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">场景环境优化</p>
+                                <p class="text-xs text-stone-500">空间布景</p>
+                            </div>
+                            <span class="step-status text-xs text-stone-500">等待中</span>
+                        </div>
+                        
+                        <div class="step-card flex items-center gap-3 p-3 rounded-xl bg-stone-900/50 border border-stone-800" data-step="3">
+                            <div class="step-indicator pending w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium">3</div>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">光影构图优化</p>
+                                <p class="text-xs text-stone-500">画面层次</p>
+                            </div>
+                            <span class="step-status text-xs text-stone-500">等待中</span>
+                        </div>
+                        
+                        <div class="step-card flex items-center gap-3 p-3 rounded-xl bg-stone-900/50 border border-stone-800" data-step="4">
+                            <div class="step-indicator pending w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium">4</div>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">画风质感优化</p>
+                                <p class="text-xs text-stone-500">视觉调性</p>
+                            </div>
+                            <span class="step-status text-xs text-stone-500">等待中</span>
+                        </div>
+                        
+                        <div class="step-card flex items-center gap-3 p-3 rounded-xl bg-stone-900/50 border border-stone-800" data-step="5">
+                            <div class="step-indicator pending w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium">5</div>
+                            <div class="flex-1">
+                                <p class="font-medium text-sm">文案排版</p>
+                                <p class="text-xs text-stone-500">成品海报</p>
+                            </div>
+                            <span class="step-status text-xs text-stone-500">等待中</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div class="glass-card rounded-2xl p-6 min-h-[500px] flex flex-col">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        生成结果
+                    </h2>
+                    
+                    <div class="flex-1 flex items-center justify-center">
+                        <div id="emptyState" class="text-center">
+                            <div class="w-24 h-24 rounded-full bg-stone-800 flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-12 h-12 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                            </div>
+                            <p class="text-stone-500">输入菜品信息后点击生成</p>
+                            <p class="text-stone-600 text-sm mt-1">AI将自动完成5轮优化</p>
+                        </div>
+                        
+                        <div id="loadingState" class="hidden text-center">
+                            <div class="spinner w-16 h-16 rounded-full mx-auto mb-4"></div>
+                            <p class="text-stone-400" id="loadingText">正在生成中...</p>
+                            <p class="text-stone-600 text-sm mt-2">预计需要1-2分钟</p>
+                        </div>
+                        
+                        <div id="resultState" class="hidden w-full">
+                            <img id="resultImage" class="result-image w-full rounded-xl shadow-2xl" alt="生成的海报">
+                            <div class="mt-4 flex gap-3">
+                                <a id="downloadBtn" href="" download="food_poster.png" 
+                                    class="gradient-btn flex-1 py-3 px-4 rounded-xl text-center text-sm font-medium text-white">
+                                    下载海报
+                                </a>
+                                <button id="regenerateBtn" class="flex-1 py-3 px-4 rounded-xl bg-stone-700 hover:bg-stone-600 transition-colors text-sm font-medium">
+                                    重新生成
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="errorState" class="hidden text-center">
+                            <div class="w-24 h-24 rounded-full bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <p class="text-red-400" id="errorText">生成失败</p>
+                            <button id="retryBtn" class="mt-4 px-6 py-2 rounded-xl bg-stone-700 hover:bg-stone-600 transition-colors text-sm">
+                                重试
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-between items-center">
+                    <button id="adminBtn" class="text-sm text-stone-500 hover:text-stone-400 flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                        管理员面板
+                    </button>
+                    <div id="connectionStatus" class="text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400">
+                        未连接
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminModal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" id="adminOverlay"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-5xl max-h-[90vh]">
+            <div class="glass-card rounded-2xl p-6 m-4 overflow-y-auto max-h-[90vh]">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex items-center gap-3">
+                        <h3 class="text-lg font-semibold">管理员面板</h3>
+                        <span class="admin-badge text-xs px-2 py-1 rounded-full text-white">管理员</span>
+                    </div>
+                    <button id="closeAdmin" class="p-2 rounded-lg hover:bg-stone-700 transition-colors text-stone-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <h4 class="font-medium text-orange-400">API 配置</h4>
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">API Key</label>
+                            <input type="password" id="adminApiKey" 
+                                class="input-field w-full px-4 py-3 rounded-xl text-sm"
+                                value="sk-1bc9a6de33214a72be42a2bd5738310c">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">图片生成模型</label>
+                            <select id="adminImageModel" class="input-field w-full px-4 py-3 rounded-xl text-sm">
+                                <option value="wan2.7-image-pro">wan2.7-image-pro</option>
+                                <option value="wan2.7-image">wan2.7-image</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">提示词优化模型</label>
+                            <select id="adminLlmModel" class="input-field w-full px-4 py-3 rounded-xl text-sm">
+                                <option value="qwen-plus">qwen-plus</option>
+                                <option value="qwen-max">qwen-max</option>
+                            </select>
+                        </div>
+                        <button id="saveAdminConfig" class="gradient-btn w-full py-3 rounded-xl text-sm font-medium text-white">
+                            保存配置
+                        </button>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-medium text-orange-400 mb-4">中间过程图</h4>
+                        <div id="processImages" class="space-y-4">
+                            <p class="text-stone-500 text-sm">生成后可在此查看各步骤中间图</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 pt-6 border-t border-stone-800">
+                    <h4 class="font-medium text-orange-400 mb-4">各步骤提示词模板</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">步骤1: 菜品主体生成</label>
+                            <textarea id="step1Prompt" rows="3" class="input-field w-full px-4 py-3 rounded-xl text-sm resize-none font-mono"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">步骤2: 场景环境优化</label>
+                            <textarea id="step2Prompt" rows="3" class="input-field w-full px-4 py-3 rounded-xl text-sm resize-none font-mono"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">步骤3: 光影构图优化</label>
+                            <textarea id="step3Prompt" rows="3" class="input-field w-full px-4 py-3 rounded-xl text-sm resize-none font-mono"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">步骤4: 画风质感优化</label>
+                            <textarea id="step4Prompt" rows="3" class="input-field w-full px-4 py-3 rounded-xl text-sm resize-none font-mono"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-stone-400 mb-2">步骤5: 文案排版</label>
+                            <textarea id="step5Prompt" rows="3" class="input-field w-full px-4 py-3 rounded-xl text-sm resize-none font-mono"></textarea>
+                        </div>
+                        <button id="savePrompts" class="gradient-btn w-full py-3 rounded-xl text-sm font-medium text-white">
+                            保存提示词模板
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
+        const LLM_API_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+        
+        const DEFAULT_STEP_PROMPTS = {
+            step1: `你是专业的美食摄影师。根据用户输入的菜品名称，生成一道精美的菜品主体图片。
+要求：
+- 菜品居中展示，占据画面主体
+- 细节清晰可见，食材纹理分明
+- 背景简洁干净，突出菜品本身
+- 色彩鲜艳自然，让人有食欲
+输出：仅输出优化后的图片生成提示词，不要其他解释。`,
+            
+            step2: `你是专业的美食场景设计师。基于上一轮生成的菜品图片，优化场景环境布置。
+要求：
+- 添加合适的餐具、餐垫、装饰物
+- 营造温馨或高端的用餐氛围
+- 保持菜品为主体，场景为衬托
+- 元素搭配协调，不喧宾夺主
+输出：仅输出优化后的图片生成提示词，不要其他解释。`,
+            
+            step3: `你是专业的美食摄影师。基于上一轮图片，优化光影和构图。
+要求：
+- 调整光线角度，突出菜品质感
+- 增加适当的阴影和高光层次
+- 优化构图比例，画面更有张力
+- 营造专业美食摄影的视觉效果
+输出：仅输出优化后的图片生成提示词，不要其他解释。`,
+            
+            step4: `你是专业的视觉设计师。基于上一轮图片，优化整体画风和质感。
+要求：
+- 统一画面色调，增强视觉冲击力
+- 提升图片质感，呈现高端品质感
+- 适当调整饱和度和对比度
+- 确保画面精致、专业、有吸引力
+输出：仅输出优化后的图片生成提示词，不要其他解释。`,
+            
+            step5: `你是专业的营销海报设计师。基于上一轮图片，添加营销文案和排版。
+要求：
+- 在合适位置添加营销文案
+- 文字排版美观，不影响菜品展示
+- 字体选择与整体风格协调
+- 最终呈现为一张完整的美食营销海报
+输出：仅输出优化后的图片生成提示词，不要其他解释。`
+        };
+        
+        let config = {
+            apiKey: 'sk-1bc9a6de33214a72be42a2bd5738310c',
+            imageModel: 'wan2.7-image-pro',
+            llmModel: 'qwen-plus',
+            stepPrompts: { ...DEFAULT_STEP_PROMPTS }
+        };
+        
+        let processImages = [];
+        let isGenerating = false;
+        
+        const elements = {
+            dishName: document.getElementById('dishName'),
+            dishDesc: document.getElementById('dishDesc'),
+            styleSelect: document.getElementById('styleSelect'),
+            marketingText: document.getElementById('marketingText'),
+            generateBtn: document.getElementById('generateBtn'),
+            progressFill: document.getElementById('progressFill'),
+            emptyState: document.getElementById('emptyState'),
+            loadingState: document.getElementById('loadingState'),
+            loadingText: document.getElementById('loadingText'),
+            resultState: document.getElementById('resultState'),
+            resultImage: document.getElementById('resultImage'),
+            downloadBtn: document.getElementById('downloadBtn'),
+            regenerateBtn: document.getElementById('regenerateBtn'),
+            errorState: document.getElementById('errorState'),
+            errorText: document.getElementById('errorText'),
+            retryBtn: document.getElementById('retryBtn'),
+            adminBtn: document.getElementById('adminBtn'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            adminModal: document.getElementById('adminModal'),
+            adminOverlay: document.getElementById('adminOverlay'),
+            closeAdmin: document.getElementById('closeAdmin'),
+            adminApiKey: document.getElementById('adminApiKey'),
+            adminImageModel: document.getElementById('adminImageModel'),
+            adminLlmModel: document.getElementById('adminLlmModel'),
+            saveAdminConfig: document.getElementById('saveAdminConfig'),
+            processImages: document.getElementById('processImages'),
+            step1Prompt: document.getElementById('step1Prompt'),
+            step2Prompt: document.getElementById('step2Prompt'),
+            step3Prompt: document.getElementById('step3Prompt'),
+            step4Prompt: document.getElementById('step4Prompt'),
+            step5Prompt: document.getElementById('step5Prompt'),
+            savePrompts: document.getElementById('savePrompts')
+        };
+        
+        function loadConfig() {
+            const saved = localStorage.getItem('food_poster_config');
+            if (saved) {
+                config = { ...config, ...JSON.parse(saved) };
+            }
+            applyConfig();
+        }
+        
+        function saveConfig() {
+            localStorage.setItem('food_poster_config', JSON.stringify(config));
+        }
+        
+        function applyConfig() {
+            elements.adminApiKey.value = config.apiKey;
+            elements.adminImageModel.value = config.imageModel;
+            elements.adminLlmModel.value = config.llmModel;
+            elements.step1Prompt.value = config.stepPrompts.step1;
+            elements.step2Prompt.value = config.stepPrompts.step2;
+            elements.step3Prompt.value = config.stepPrompts.step3;
+            elements.step4Prompt.value = config.stepPrompts.step4;
+            elements.step5Prompt.value = config.stepPrompts.step5;
+        }
+        
+        function updateStepStatus(step, status) {
+            const card = document.querySelector(`[data-step="${step}"]`);
+            const indicator = card.querySelector('.step-indicator');
+            const statusText = card.querySelector('.step-status');
+            
+            indicator.className = 'step-indicator w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium';
+            
+            if (status === 'active') {
+                indicator.classList.add('active');
+                statusText.textContent = '处理中...';
+                statusText.className = 'step-status text-xs text-orange-400';
+                card.classList.add('active');
+            } else if (status === 'completed') {
+                indicator.classList.add('completed');
+                statusText.textContent = '已完成';
+                statusText.className = 'step-status text-xs text-green-400';
+                card.classList.remove('active');
+            } else {
+                indicator.classList.add('pending');
+                statusText.textContent = '等待中';
+                statusText.className = 'step-status text-xs text-stone-500';
+                card.classList.remove('active');
+            }
+        }
+        
+        function resetSteps() {
+            for (let i = 1; i <= 5; i++) {
+                updateStepStatus(i, 'pending');
+            }
+            elements.progressFill.style.width = '0%';
+        }
+        
+        async function optimizePrompt(step, input, previousImage = null) {
+            const systemPrompt = config.stepPrompts[`step${step}`];
+            
+            const messages = [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: input }
+            ];
+            
+            const response = await fetch(LLM_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: config.llmModel,
+                    messages: messages,
+                    temperature: 0.7,
+                    max_tokens: 1000
+                })
+            });
+            
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error?.message || '优化失败');
+            }
+            
+            return data.choices[0].message.content.trim();
+        }
+        
+        async function generateImage(prompt, referenceImage = null) {
+            const content = [{ text: prompt }];
+            
+            if (referenceImage) {
+                content.push({ image: referenceImage });
+            }
+            
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: config.imageModel,
+                    input: {
+                        messages: [{
+                            role: 'user',
+                            content: content
+                        }]
+                    },
+                    parameters: {
+                        size: '2K',
+                        n: 1,
+                        watermark: false
+                    }
+                })
+            });
+            
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || '生成失败');
+            }
+            
+            const imageContent = data.output.choices[0].message.content.find(c => c.type === 'image');
+            return imageContent ? imageContent.image : null;
+        }
+        
+        async function startGeneration() {
+            const dishName = elements.dishName.value.trim();
+            if (!dishName) {
+                alert('请输入菜品名称');
+                return;
+            }
+            
+            if (isGenerating) return;
+            isGenerating = true;
+            
+            const dishDesc = elements.dishDesc.value.trim();
+            const style = elements.styleSelect.value;
+            const marketingText = elements.marketingText.value.trim();
+            
+            const userInput = `菜品名称：${dishName}${dishDesc ? '，描述：' + dishDesc : ''}${style !== 'default' ? '，风格：' + style : ''}${marketingText ? '，营销文案：' + marketingText : ''}`;
+            
+            elements.emptyState.classList.add('hidden');
+            elements.resultState.classList.add('hidden');
+            elements.errorState.classList.add('hidden');
+            elements.loadingState.classList.remove('hidden');
+            elements.generateBtn.disabled = true;
+            
+            resetSteps();
+            processImages = [];
+            
+            let currentImage = null;
+            let currentPrompt = userInput;
+            
+            const stepNames = [
+                '菜品主体生成中...',
+                '场景环境优化中...',
+                '光影构图优化中...',
+                '画风质感优化中...',
+                '文案排版中...'
+            ];
+            
+            try {
+                for (let step = 1; step <= 5; step++) {
+                    updateStepStatus(step, 'active');
+                    elements.loadingText.textContent = stepNames[step - 1];
+                    elements.progressFill.style.width = `${(step - 0.5) * 20}%`;
+                    
+                    const optimizedPrompt = await optimizePrompt(step, currentPrompt, currentImage);
+                    
+                    elements.progressFill.style.width = `${(step - 0.2) * 20}%`;
+                    
+                    currentImage = await generateImage(optimizedPrompt, currentImage);
+                    
+                    if (!currentImage) {
+                        throw new Error(`步骤${step}生成失败`);
+                    }
+                    
+                    processImages.push({
+                        step: step,
+                        name: ['菜品主体', '场景环境', '光影构图', '画风质感', '成品海报'][step - 1],
+                        url: currentImage,
+                        prompt: optimizedPrompt
+                    });
+                    
+                    currentPrompt = optimizedPrompt;
+                    updateStepStatus(step, 'completed');
+                    elements.progressFill.style.width = `${step * 20}%`;
+                }
+                
+                elements.resultImage.src = currentImage;
+                elements.downloadBtn.href = currentImage;
+                elements.loadingState.classList.add('hidden');
+                elements.resultState.classList.remove('hidden');
+                
+                updateProcessImagesDisplay();
+                
+            } catch (error) {
+                elements.loadingState.classList.add('hidden');
+                elements.errorState.classList.remove('hidden');
+                elements.errorText.textContent = error.message;
+            } finally {
+                isGenerating = false;
+                elements.generateBtn.disabled = false;
+            }
+        }
+        
+        function updateProcessImagesDisplay() {
+            if (processImages.length === 0) {
+                elements.processImages.innerHTML = '<p class="text-stone-500 text-sm">生成后可在此查看各步骤中间图</p>';
+                return;
+            }
+            
+            elements.processImages.innerHTML = processImages.map(img => `
+                <div class="bg-stone-900/50 rounded-xl p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium">步骤${img.step}: ${img.name}</span>
+                        <a href="${img.url}" download="step${img.step}.png" class="text-xs text-orange-400 hover:text-orange-300">下载</a>
+                    </div>
+                    <img src="${img.url}" class="w-full rounded-lg mb-2" alt="步骤${img.step}">
+                    <details class="text-xs">
+                        <summary class="text-stone-400 cursor-pointer hover:text-stone-300">查看提示词</summary>
+                        <p class="mt-2 text-stone-500 p-2 bg-stone-800 rounded">${img.prompt}</p>
+                    </details>
+                </div>
+            `).join('');
+        }
+        
+        async function testConnection() {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${config.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'wan2.7-image',
+                        input: {
+                            messages: [{
+                                role: 'user',
+                                content: [{ text: 'test' }]
+                            }]
+                        }
+                    })
+                });
+                
+                if (response.ok || response.status === 400) {
+                    elements.connectionStatus.className = 'text-xs px-3 py-1 rounded-full bg-green-500/20 text-green-400';
+                    elements.connectionStatus.textContent = '已连接';
+                } else {
+                    elements.connectionStatus.className = 'text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400';
+                    elements.connectionStatus.textContent = '连接失败';
+                }
+            } catch (error) {
+                elements.connectionStatus.className = 'text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400';
+                elements.connectionStatus.textContent = '连接失败';
+            }
+        }
+        
+        elements.generateBtn.addEventListener('click', startGeneration);
+        elements.regenerateBtn.addEventListener('click', startGeneration);
+        elements.retryBtn.addEventListener('click', startGeneration);
+        
+        elements.adminBtn.addEventListener('click', () => {
+            elements.adminModal.classList.remove('hidden');
+        });
+        
+        elements.closeAdmin.addEventListener('click', () => {
+            elements.adminModal.classList.add('hidden');
+        });
+        
+        elements.adminOverlay.addEventListener('click', () => {
+            elements.adminModal.classList.add('hidden');
+        });
+        
+        elements.saveAdminConfig.addEventListener('click', () => {
+            config.apiKey = elements.adminApiKey.value;
+            config.imageModel = elements.adminImageModel.value;
+            config.llmModel = elements.adminLlmModel.value;
+            saveConfig();
+            testConnection();
+            alert('配置已保存');
+        });
+        
+        elements.savePrompts.addEventListener('click', () => {
+            config.stepPrompts.step1 = elements.step1Prompt.value;
+            config.stepPrompts.step2 = elements.step2Prompt.value;
+            config.stepPrompts.step3 = elements.step3Prompt.value;
+            config.stepPrompts.step4 = elements.step4Prompt.value;
+            config.stepPrompts.step5 = elements.step5Prompt.value;
+            saveConfig();
+            alert('提示词模板已保存');
+        });
+        
+        loadConfig();
+        testConnection();
+    </script>
+</body>
+</html>
