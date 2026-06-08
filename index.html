@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阿里云万相 - AI图片对话生成</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --accent: #8b5cf6;
+            --bg-dark: #0a0a0f;
+            --bg-sidebar: #0f0f18;
+            --bg-chat: #12121c;
+            --bg-input: #1a1a28;
+            --bg-message-user: #1e1e30;
+            --bg-message-ai: #18182a;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border: #2d2d4a;
+        }
+        
+        * {
+            font-family: 'Noto Sans SC', sans-serif;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: var(--bg-dark);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #3d3d5a;
+        }
+        
+        .chat-container {
+            height: calc(100vh - 180px);
+        }
+        
+        .message-user {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.15) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        
+        .message-ai {
+            background: var(--bg-message-ai);
+            border: 1px solid var(--border);
+        }
+        
+        .input-area {
+            background: linear-gradient(to top, var(--bg-dark) 0%, transparent 100%);
+        }
+        
+        .gradient-btn {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .gradient-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4);
+        }
+        
+        .gradient-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .input-field {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        
+        .input-field::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        .session-item {
+            transition: all 0.2s ease;
+        }
+        
+        .session-item:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+        
+        .session-item.active {
+            background: rgba(99, 102, 241, 0.2);
+            border-left: 3px solid var(--primary);
+        }
+        
+        .typing-indicator span {
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        @keyframes fadeInUp {
+            from { 
+                opacity: 0; 
+                transform: translateY(10px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+        
+        .message-animate {
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        @keyframes pulse-border {
+            0%, 100% { border-color: var(--primary); }
+            50% { border-color: var(--accent); }
+        }
+        
+        .generating {
+            animation: pulse-border 1.5s ease-in-out infinite;
+        }
+        
+        .preview-thumb {
+            max-height: 80px;
+            max-width: 120px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+        
+        .generated-image {
+            max-height: 350px;
+            object-fit: contain;
+            border-radius: 12px;
+        }
+        
+        .icon-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .icon-btn:hover {
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--primary);
+        }
+        
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+        }
+        
+        .settings-panel {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+        }
+        
+        .prompt-compare {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px dashed var(--primary);
+        }
+        
+        .tab-btn-active {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+        }
+        
+        .admin-badge {
+            background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+        }
+    </style>
+</head>
+<body class="text-slate-100">
+    <div class="flex h-screen">
+        <aside class="w-72 bg-[#0f0f18] border-r border-[#2d2d4a] flex flex-col">
+            <div class="p-4 border-b border-[#2d2d4a]">
+                <button id="newSessionBtn" class="w-full gradient-btn py-3 px-4 rounded-xl font-medium text-white flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    新建对话
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-1" id="sessionList">
+            </div>
+            
+            <div class="p-4 border-t border-[#2d2d4a] space-y-2">
+                <button id="settingsBtn" class="w-full py-2 px-4 rounded-xl hover:bg-[#1a1a28] transition-colors text-sm text-slate-400 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    设置
+                </button>
+                <button id="adminBtn" class="w-full py-2 px-4 rounded-xl hover:bg-[#1a1a28] transition-colors text-sm text-slate-400 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                    管理员面板
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col bg-[#12121c]">
+            <header class="h-14 border-b border-[#2d2d4a] flex items-center justify-between px-6">
+                <div class="flex items-center gap-3">
+                    <h1 class="text-lg font-semibold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                        阿里云万相
+                    </h1>
+                    <span class="text-xs text-slate-500" id="currentModelBadge">wan2.7-image-pro</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="connectionStatus" class="text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400">未连接</span>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-y-auto scrollbar-thin p-6" id="chatContainer">
+                <div id="welcomeScreen" class="h-full flex flex-col items-center justify-center text-center">
+                    <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-6">
+                        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                    <h2 class="text-2xl font-bold mb-3">欢迎使用万相图片生成</h2>
+                    <p class="text-slate-400 max-w-md mb-8">通过对话方式生成和编辑图片，支持多轮对话、图片编辑、风格迁移等功能</p>
+                    <div class="grid grid-cols-2 gap-3 max-w-lg">
+                        <button class="quick-prompt p-4 rounded-xl bg-[#1a1a28] border border-[#2d2d4a] hover:border-indigo-500 transition-colors text-left">
+                            <p class="font-medium mb-1">文生图</p>
+                            <p class="text-xs text-slate-500">一只可爱的橘猫坐在窗台上</p>
+                        </button>
+                        <button class="quick-prompt p-4 rounded-xl bg-[#1a1a28] border border-[#2d2d4a] hover:border-indigo-500 transition-colors text-left">
+                            <p class="font-medium mb-1">图像编辑</p>
+                            <p class="text-xs text-slate-500">上传图片后描述修改</p>
+                        </button>
+                        <button class="quick-prompt p-4 rounded-xl bg-[#1a1a28] border border-[#2d2d4a] hover:border-indigo-500 transition-colors text-left">
+                            <p class="font-medium mb-1">风格迁移</p>
+                            <p class="text-xs text-slate-500">将图片转换为油画风格</p>
+                        </button>
+                        <button class="quick-prompt p-4 rounded-xl bg-[#1a1a28] border border-[#2d2d4a] hover:border-indigo-500 transition-colors text-left">
+                            <p class="font-medium mb-1">多图融合</p>
+                            <p class="text-xs text-slate-500">结合多张图片特点</p>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="messagesContainer" class="hidden space-y-6 max-w-4xl mx-auto">
+                </div>
+            </div>
+
+            <div class="input-area p-4">
+                <div class="max-w-4xl mx-auto">
+                    <div id="imagePreviewBar" class="hidden mb-3 flex gap-2 flex-wrap">
+                    </div>
+                    
+                    <div class="flex gap-3 items-end">
+                        <div class="flex gap-1">
+                            <button id="uploadImageBtn" class="icon-btn p-3 rounded-xl text-slate-400" title="上传图片">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                            </button>
+                            <input type="file" id="imageInput" accept="image/*" multiple class="hidden">
+                        </div>
+                        
+                        <div class="flex-1 relative">
+                            <textarea id="messageInput" rows="1" 
+                                class="input-field w-full px-4 py-3 rounded-2xl text-sm resize-none pr-12"
+                                placeholder="描述你想要生成或编辑的图片..."
+                                style="max-height: 150px;"></textarea>
+                        </div>
+                        
+                        <button id="sendBtn" class="gradient-btn p-3 rounded-xl text-white" disabled>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div class="flex justify-between items-center mt-2 text-xs text-slate-500">
+                        <span>按 Enter 发送，Shift+Enter 换行</span>
+                        <span id="charCounter">0 / 5000</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="settingsModal" class="fixed inset-0 z-50 hidden">
+        <div class="modal-overlay absolute inset-0" id="modalOverlay"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+            <div class="settings-panel rounded-2xl p-6 m-4">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-semibold">设置</h3>
+                    <button id="closeSettings" class="icon-btn p-2 rounded-lg text-slate-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">API Key</label>
+                        <input type="password" id="apiKeyInput" 
+                            class="input-field w-full px-4 py-3 rounded-xl text-sm"
+                            placeholder="sk-xxxxx"
+                            value="sk-1bc9a6de33214a72be42a2bd5738310c">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">模型选择</label>
+                        <select id="modelSelect" class="input-field w-full px-4 py-3 rounded-xl text-sm">
+                            <option value="wan2.7-image-pro">wan2.7-image-pro (专业版)</option>
+                            <option value="wan2.7-image">wan2.7-image (快速版)</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">图片尺寸</label>
+                        <select id="sizeSelect" class="input-field w-full px-4 py-3 rounded-xl text-sm">
+                            <option value="1K">1K (1024)</option>
+                            <option value="2K" selected>2K (2048)</option>
+                            <option value="4K">4K (4096) - 仅专业版文生图</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">生成数量</label>
+                        <select id="countSelect" class="input-field w-full px-4 py-3 rounded-xl text-sm">
+                            <option value="1">1 张</option>
+                            <option value="2">2 张</option>
+                            <option value="4">4 张</option>
+                        </select>
+                    </div>
+                    
+                    <div class="pt-4 flex gap-3">
+                        <button id="testConnectionBtn" class="flex-1 py-3 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 transition-colors text-sm font-medium">
+                            测试连接
+                        </button>
+                        <button id="saveSettingsBtn" class="flex-1 gradient-btn py-3 px-4 rounded-xl text-sm font-medium text-white">
+                            保存设置
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminModal" class="fixed inset-0 z-50 hidden">
+        <div class="modal-overlay absolute inset-0" id="adminOverlay"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl max-h-[90vh]">
+            <div class="settings-panel rounded-2xl p-6 m-4 overflow-y-auto max-h-[90vh]">
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex items-center gap-3">
+                        <h3 class="text-lg font-semibold">管理员面板</h3>
+                        <span class="admin-badge text-xs px-2 py-1 rounded-full text-white">管理员</span>
+                    </div>
+                    <button id="closeAdmin" class="icon-btn p-2 rounded-lg text-slate-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="mb-6">
+                    <div class="flex gap-2 mb-4">
+                        <button class="tab-btn-active px-4 py-2 rounded-lg text-sm font-medium" data-admin-tab="prompt">提示词优化规则</button>
+                        <button class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600" data-admin-tab="model">模型配置</button>
+                    </div>
+                </div>
+                
+                <div id="promptTab" class="admin-tab-content">
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">启用提示词优化</label>
+                                <p class="text-xs text-slate-500">开启后用户输入的提示词会自动优化</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="enableOptimization" class="sr-only peer" checked>
+                                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2">优化模型 (用于提示词优化)</label>
+                            <select id="optimizerModel" class="input-field w-full px-4 py-3 rounded-xl text-sm">
+                                <option value="qwen-plus">qwen-plus (推荐)</option>
+                                <option value="qwen-turbo">qwen-turbo (快速)</option>
+                                <option value="qwen-max">qwen-max (高级)</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm text-slate-400">优化规则 (System Prompt)</label>
+                                <button id="resetPromptRules" class="text-xs text-indigo-400 hover:text-indigo-300">重置为默认</button>
+                            </div>
+                            <textarea id="promptRules" rows="20" 
+                                class="input-field w-full px-4 py-3 rounded-xl text-sm resize-none font-mono"
+                                placeholder="输入优化规则..."></textarea>
+                            <p class="text-xs text-slate-500 mt-2">此规则将作为System Prompt发送给AI模型进行提示词优化</p>
+                        </div>
+                        
+                        <div class="flex gap-3">
+                            <button id="testOptimizeBtn" class="flex-1 py-3 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 transition-colors text-sm font-medium">
+                                测试优化
+                            </button>
+                            <button id="savePromptRules" class="flex-1 gradient-btn py-3 px-4 rounded-xl text-sm font-medium text-white">
+                                保存规则
+                            </button>
+                        </div>
+                        
+                        <div id="testOptimizeResult" class="hidden">
+                            <label class="block text-sm text-slate-400 mb-2">测试结果</label>
+                            <div class="bg-slate-900/50 rounded-xl p-4 text-sm"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="modelTab" class="admin-tab-content hidden">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2">默认生图模型</label>
+                            <select id="defaultImageModel" class="input-field w-full px-4 py-3 rounded-xl text-sm">
+                                <option value="wan2.7-image-pro">wan2.7-image-pro (专业版)</option>
+                                <option value="wan2.7-image">wan2.7-image (快速版)</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2">默认图片尺寸</label>
+                            <select id="defaultSize" class="input-field w-full px-4 py-3 rounded-xl text-sm">
+                                <option value="1K">1K (1024)</option>
+                                <option value="2K" selected>2K (2048)</option>
+                                <option value="4K">4K (4096)</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-2">默认生成数量</label>
+                            <select id="defaultCount" class="input-field w-full px-4 py-3 rounded-xl text-sm">
+                                <option value="1">1 张</option>
+                                <option value="2">2 张</option>
+                                <option value="4">4 张</option>
+                            </select>
+                        </div>
+                        
+                        <button id="saveModelConfig" class="w-full gradient-btn py-3 px-4 rounded-xl text-sm font-medium text-white">
+                            保存配置
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
+        const LLM_API_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+        
+        const DEFAULT_PROMPT_RULES = `# 角色
+你是一位专业的AI绘图提示词优化师，专注于将用户输入的抽象或模糊文字提示词优化为精准、具象且富有细节的图像生成提示，帮助用户提升提示词质量，助力生成高质量、符合预期的实物图像。
+
+## 技能
+### 技能 1: 提示词细节具象化优化
+- **目标**：将用户输入的简洁提示词（如"一碗面"）转化为包含材质、形态、动态的具体描述，让图像生成更精准。
+- **方法**：拆解提示词核心元素（如主体、数量、场景），补充细节：
+  - 材质细节：如"粗陶碗""玻璃盘""木质托盘"；
+  - 颜色/纹理：如"琥珀色汤汁""嫩绿葱花""金黄酥脆外皮"；
+  - 动态/状态：如"蒸汽氤氲""微微沸腾""糖霜簌簌飘落"；
+  - 感官描述：如"香气四溢""外酥里嫩""酸甜多汁"（确保词语让人有食欲）。
+- **回复示例**：
+  用户输入："蛋糕"
+  优化后："8寸圆形奶油蛋糕，居中摆放，顶部淡粉色奶油裱花（点缀3克可食用金粉），侧面撒20克草莓干碎，背景浅米色柔光（光影柔和，突出蛋糕湿润质感），蛋糕表面光泽均匀，草莓切片置于旁侧餐盘"。
+
+### 技能 2: 构图与氛围补充
+- **目标**：根据提示词核心元素确定科学构图，增强画面层次感与情感共鸣。
+- **方法**：
+  - **构图方式**：按用户指定位置严格执行（如"左侧放水果盘"需明确"左侧30%区域"），可选角度（俯拍/平视/侧逆光）、背景虚实（如"虚化背景突出主体"）；
+  - **氛围与光线**：补充色调（如"暖橙色""冷调青灰"）、光线类型（如"柔和顶光""侧上方45°硬光"）、情感氛围（如"温馨治愈""清新自然"），确保根据用户的光感颜色生成，无偏差；
+  - **空间层次**：区分前景（主体）、中景（辅助元素）、背景（环境），确保元素位置无偏差，构图需按提示词的位置摆放要求严格执行。
+- **回复示例**：
+  用户输入："咖啡杯"
+  优化后："250ml白瓷咖啡杯，居中摆放（杯口朝右上方），杯中浅棕色拿铁（拉花呈树叶形），杯沿放3块方糖（表面撒肉桂粉），背景虚化的木质桌面（光线从左上方斜射，形成杯壁反光）"。
+
+### 技能 3: 风格与合规性处理
+- **目标**：匹配用户需求的艺术风格，同步规避平台合规限制。
+- **方法**：
+  - **风格选择**：根据提示词需求（如"写实摄影风""新中式水墨风""北欧极简风"）补充风格关键词；
+  - **品牌处理**：若提示词含品牌/Logo（如"可口可乐瓶"），替换为"XX品牌可乐瓶"（虚拟品牌名），仅允许用户明确要求且可商用的品牌；
+  - **绝对化用语**：替换"最""顶级""第一"等表述为合规词（如"优质""经典""广受好评"）；
+  - **内容限制**：拒绝血腥（如"鲜血淋漓"）、暴力（如"刀叉切割生肉"）、仅呈现未加工生肉（如"生牛排"且无烹饪描述）。
+
+### 技能 4: 数字转换与规范执行
+- **目标**：确保数字表述准确，构图位置严格遵循用户指令。
+- **方法**：
+  - **数字转换**：将中文数字（如"二""三"）转为阿拉伯数字（"2""3"）；
+  - **位置执行**：若用户提示词含"左上方""右侧中间"等位置，优化为具体坐标或区域描述（如"主体位于画面左侧1/3区域"），确保构图元素无偏差。
+
+## 限制
+- 仅输出优化后的图像生成提示词，不添加额外解释（除非用户明确要求）；
+- 严格拒绝卡通、插画、抽象风格，仅生成写实类实物图像；
+- 中文数字必须转换为阿拉伯数字，如"三"→"3"；
+- 图像中无绝对化用语，无品牌/Logo（用户明确要求且合规的除外）；
+- 拒绝血腥、暴力的图像，提示词是生肉，就仅呈现未加工生肉的图像，不能出现血水、无过度渲染血腥；
+- 构图元素位置严格按用户指定描述执行，无偏差；
+- 不要把食物放在纸上；
+- 括号内备注的地点是场景，最终生成的图主角还是菜品，菜品需要放在餐具中；`;
+        
+        let sessions = [];
+        let currentSessionId = null;
+        let pendingImages = [];
+        let isGenerating = false;
+        
+        let settings = {
+            apiKey: 'sk-1bc9a6de33214a72be42a2bd5738310c',
+            model: 'wan2.7-image-pro',
+            size: '2K',
+            count: 1
+        };
+        
+        let adminSettings = {
+            enableOptimization: true,
+            optimizerModel: 'qwen-plus',
+            promptRules: DEFAULT_PROMPT_RULES,
+            defaultImageModel: 'wan2.7-image-pro',
+            defaultSize: '2K',
+            defaultCount: 1
+        };
+
+        const elements = {
+            sessionList: document.getElementById('sessionList'),
+            chatContainer: document.getElementById('chatContainer'),
+            welcomeScreen: document.getElementById('welcomeScreen'),
+            messagesContainer: document.getElementById('messagesContainer'),
+            messageInput: document.getElementById('messageInput'),
+            sendBtn: document.getElementById('sendBtn'),
+            uploadImageBtn: document.getElementById('uploadImageBtn'),
+            imageInput: document.getElementById('imageInput'),
+            imagePreviewBar: document.getElementById('imagePreviewBar'),
+            charCounter: document.getElementById('charCounter'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            currentModelBadge: document.getElementById('currentModelBadge'),
+            newSessionBtn: document.getElementById('newSessionBtn'),
+            settingsBtn: document.getElementById('settingsBtn'),
+            adminBtn: document.getElementById('adminBtn'),
+            settingsModal: document.getElementById('settingsModal'),
+            modalOverlay: document.getElementById('modalOverlay'),
+            closeSettings: document.getElementById('closeSettings'),
+            apiKeyInput: document.getElementById('apiKeyInput'),
+            modelSelect: document.getElementById('modelSelect'),
+            sizeSelect: document.getElementById('sizeSelect'),
+            countSelect: document.getElementById('countSelect'),
+            testConnectionBtn: document.getElementById('testConnectionBtn'),
+            saveSettingsBtn: document.getElementById('saveSettingsBtn'),
+            adminModal: document.getElementById('adminModal'),
+            adminOverlay: document.getElementById('adminOverlay'),
+            closeAdmin: document.getElementById('closeAdmin'),
+            enableOptimization: document.getElementById('enableOptimization'),
+            optimizerModel: document.getElementById('optimizerModel'),
+            promptRules: document.getElementById('promptRules'),
+            resetPromptRules: document.getElementById('resetPromptRules'),
+            testOptimizeBtn: document.getElementById('testOptimizeBtn'),
+            savePromptRules: document.getElementById('savePromptRules'),
+            testOptimizeResult: document.getElementById('testOptimizeResult'),
+            defaultImageModel: document.getElementById('defaultImageModel'),
+            defaultSize: document.getElementById('defaultSize'),
+            defaultCount: document.getElementById('defaultCount'),
+            saveModelConfig: document.getElementById('saveModelConfig')
+        };
+
+        function loadFromStorage() {
+            const savedSessions = localStorage.getItem('wanx_sessions');
+            const savedSettings = localStorage.getItem('wanx_settings');
+            const savedAdminSettings = localStorage.getItem('wanx_admin_settings');
+            
+            if (savedSessions) {
+                sessions = JSON.parse(savedSessions);
+            }
+            if (savedSettings) {
+                settings = { ...settings, ...JSON.parse(savedSettings) };
+            }
+            if (savedAdminSettings) {
+                adminSettings = { ...adminSettings, ...JSON.parse(savedAdminSettings) };
+            }
+            
+            applySettings();
+            applyAdminSettings();
+            renderSessionList();
+        }
+
+        function saveToStorage() {
+            localStorage.setItem('wanx_sessions', JSON.stringify(sessions));
+            localStorage.setItem('wanx_settings', JSON.stringify(settings));
+            localStorage.setItem('wanx_admin_settings', JSON.stringify(adminSettings));
+        }
+
+        function applySettings() {
+            elements.apiKeyInput.value = settings.apiKey;
+            elements.modelSelect.value = settings.model;
+            elements.sizeSelect.value = settings.size;
+            elements.countSelect.value = settings.count;
+            elements.currentModelBadge.textContent = settings.model;
+        }
+
+        function applyAdminSettings() {
+            elements.enableOptimization.checked = adminSettings.enableOptimization;
+            elements.optimizerModel.value = adminSettings.optimizerModel;
+            elements.promptRules.value = adminSettings.promptRules;
+            elements.defaultImageModel.value = adminSettings.defaultImageModel;
+            elements.defaultSize.value = adminSettings.defaultSize;
+            elements.defaultCount.value = adminSettings.defaultCount;
+        }
+
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        function createSession() {
+            const session = {
+                id: generateId(),
+                title: '新对话',
+                messages: [],
+                createdAt: Date.now()
+            };
+            sessions.unshift(session);
+            saveToStorage();
+            renderSessionList();
+            switchSession(session.id);
+        }
+
+        function deleteSession(sessionId) {
+            sessions = sessions.filter(s => s.id !== sessionId);
+            saveToStorage();
+            renderSessionList();
+            
+            if (currentSessionId === sessionId) {
+                currentSessionId = null;
+                elements.welcomeScreen.classList.remove('hidden');
+                elements.messagesContainer.classList.add('hidden');
+            }
+        }
+
+        function switchSession(sessionId) {
+            currentSessionId = sessionId;
+            renderSessionList();
+            renderMessages();
+        }
+
+        function renderSessionList() {
+            elements.sessionList.innerHTML = sessions.map(session => `
+                <div class="session-item rounded-xl p-3 cursor-pointer group ${session.id === currentSessionId ? 'active' : ''}" 
+                     onclick="switchSession('${session.id}')">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium truncate">${session.title}</p>
+                            <p class="text-xs text-slate-500 mt-1">${formatDate(session.createdAt)}</p>
+                        </div>
+                        <button class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-red-400 transition-all"
+                                onclick="event.stopPropagation(); deleteSession('${session.id}')">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatDate(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return '刚刚';
+            if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+            if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+            if (diff < 604800000) return `${Math.floor(diff / 86400000)}天前`;
+            
+            return date.toLocaleDateString('zh-CN');
+        }
+
+        function getCurrentSession() {
+            return sessions.find(s => s.id === currentSessionId);
+        }
+
+        function renderMessages() {
+            const session = getCurrentSession();
+            
+            if (!session || session.messages.length === 0) {
+                elements.welcomeScreen.classList.remove('hidden');
+                elements.messagesContainer.classList.add('hidden');
+                return;
+            }
+            
+            elements.welcomeScreen.classList.add('hidden');
+            elements.messagesContainer.classList.remove('hidden');
+            
+            elements.messagesContainer.innerHTML = session.messages.map((msg, index) => {
+                if (msg.role === 'user') {
+                    return `
+                        <div class="flex justify-end message-animate">
+                            <div class="message-user rounded-2xl rounded-tr-md p-4 max-w-2xl">
+                                ${msg.images && msg.images.length > 0 ? `
+                                    <div class="flex gap-2 mb-3 flex-wrap">
+                                        ${msg.images.map(img => `
+                                            <img src="${img}" class="preview-thumb cursor-pointer" onclick="openImageModal('${img}')">
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
+                                <p class="text-sm whitespace-pre-wrap">${msg.text}</p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    if (msg.isOptimizing) {
+                        return `
+                            <div class="flex justify-start message-animate">
+                                <div class="message-ai rounded-2xl rounded-tl-md p-4 max-w-2xl">
+                                    <div class="flex items-center gap-3">
+                                        <div class="typing-indicator flex gap-1">
+                                            <span class="w-2 h-2 bg-indigo-400 rounded-full"></span>
+                                            <span class="w-2 h-2 bg-indigo-400 rounded-full"></span>
+                                            <span class="w-2 h-2 bg-indigo-400 rounded-full"></span>
+                                        </div>
+                                        <span class="text-sm text-slate-400">正在优化提示词...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (msg.isGenerating) {
+                        return `
+                            <div class="flex justify-start message-animate">
+                                <div class="message-ai rounded-2xl rounded-tl-md p-4 max-w-2xl">
+                                    <div class="flex items-center gap-3">
+                                        <div class="typing-indicator flex gap-1">
+                                            <span class="w-2 h-2 bg-indigo-400 rounded-full"></span>
+                                            <span class="w-2 h-2 bg-indigo-400 rounded-full"></span>
+                                            <span class="w-2 h-2 bg-indigo-400 rounded-full"></span>
+                                        </div>
+                                        <span class="text-sm text-slate-400">正在生成图片...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (msg.error) {
+                        return `
+                            <div class="flex justify-start message-animate">
+                                <div class="message-ai rounded-2xl rounded-tl-md p-4 max-w-2xl border-red-500/30">
+                                    <p class="text-sm text-red-400">❌ ${msg.error}</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    return `
+                        <div class="flex justify-start message-animate">
+                            <div class="message-ai rounded-2xl rounded-tl-md p-4 max-w-2xl">
+                                ${msg.optimizedPrompt ? `
+                                    <div class="prompt-compare rounded-xl p-3 mb-3">
+                                        <p class="text-xs text-slate-500 mb-1">优化后的提示词：</p>
+                                        <p class="text-sm text-slate-300">${msg.optimizedPrompt}</p>
+                                    </div>
+                                ` : ''}
+                                ${msg.images && msg.images.length > 0 ? `
+                                    <div class="space-y-3 mb-3">
+                                        ${msg.images.map((img, i) => `
+                                            <div class="relative group">
+                                                <img src="${img.url}" class="generated-image cursor-pointer" onclick="openImageModal('${img.url}')">
+                                                <div class="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <a href="${img.url}" download="generated_${i}.png" 
+                                                       class="p-2 rounded-lg bg-black/50 hover:bg-black/70 text-white text-xs">
+                                                        下载
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
+                                ${msg.text ? `<p class="text-sm text-slate-300">${msg.text}</p>` : ''}
+                                ${msg.size ? `<p class="text-xs text-slate-500 mt-2">尺寸: ${msg.size}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+            }).join('');
+            
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            elements.chatContainer.scrollTop = elements.chatContainer.scrollHeight;
+        }
+
+        function addMessage(role, content) {
+            const session = getCurrentSession();
+            if (!session) return;
+            
+            const message = {
+                id: generateId(),
+                role,
+                ...content,
+                timestamp: Date.now()
+            };
+            
+            session.messages.push(message);
+            
+            if (role === 'user' && session.messages.length === 1) {
+                session.title = content.text.substring(0, 20) + (content.text.length > 20 ? '...' : '');
+                renderSessionList();
+            }
+            
+            saveToStorage();
+            renderMessages();
+        }
+
+        function updateLastMessage(content) {
+            const session = getCurrentSession();
+            if (!session || session.messages.length === 0) return;
+            
+            const lastMsg = session.messages[session.messages.length - 1];
+            Object.assign(lastMsg, content);
+            saveToStorage();
+            renderMessages();
+        }
+
+        async function optimizePrompt(userPrompt) {
+            if (!adminSettings.enableOptimization) {
+                return userPrompt;
+            }
+            
+            const response = await fetch(LLM_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${settings.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: adminSettings.optimizerModel,
+                    messages: [
+                        { role: 'system', content: adminSettings.promptRules },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.7,
+                    max_tokens: 1000
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error?.message || `优化失败: HTTP ${response.status}`);
+            }
+            
+            return data.choices[0].message.content.trim();
+        }
+
+        async function generateImage(prompt, images = []) {
+            const content = [];
+            content.push({ text: prompt });
+            
+            images.forEach(img => {
+                content.push({ image: img });
+            });
+            
+            const requestBody = {
+                model: settings.model,
+                input: {
+                    messages: [{
+                        role: 'user',
+                        content: content
+                    }]
+                },
+                parameters: {
+                    size: settings.size,
+                    n: settings.count,
+                    watermark: false
+                }
+            };
+            
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${settings.apiKey}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.message || `HTTP ${response.status}`);
+            }
+            
+            return data;
+        }
+
+        async function sendMessage() {
+            const text = elements.messageInput.value.trim();
+            const images = [...pendingImages];
+            
+            if (!text && images.length === 0) return;
+            if (isGenerating) return;
+            
+            if (!currentSessionId) {
+                createSession();
+            }
+            
+            addMessage('user', { text, images });
+            
+            elements.messageInput.value = '';
+            elements.charCounter.textContent = '0 / 5000';
+            clearImagePreviews();
+            updateSendButton();
+            
+            isGenerating = true;
+            elements.sendBtn.disabled = true;
+            
+            let optimizedPrompt = text;
+            
+            if (adminSettings.enableOptimization && text) {
+                addMessage('assistant', { isOptimizing: true });
+                
+                try {
+                    optimizedPrompt = await optimizePrompt(text);
+                    updateLastMessage({ isOptimizing: false, isGenerating: true });
+                } catch (error) {
+                    updateLastMessage({
+                        isOptimizing: false,
+                        error: `提示词优化失败: ${error.message}，将使用原始提示词生成`
+                    });
+                    optimizedPrompt = text;
+                    addMessage('assistant', { isGenerating: true });
+                }
+            } else {
+                addMessage('assistant', { isGenerating: true });
+            }
+            
+            try {
+                const result = await generateImage(optimizedPrompt, images);
+                
+                const generatedImages = result.output.choices.map(choice => {
+                    const imgContent = choice.message.content.find(c => c.type === 'image');
+                    return imgContent ? { url: imgContent.image } : null;
+                }).filter(Boolean);
+                
+                updateLastMessage({
+                    isGenerating: false,
+                    images: generatedImages,
+                    optimizedPrompt: adminSettings.enableOptimization && text !== optimizedPrompt ? optimizedPrompt : null,
+                    text: `已生成 ${generatedImages.length} 张图片`,
+                    size: result.usage?.size
+                });
+                
+            } catch (error) {
+                updateLastMessage({
+                    isGenerating: false,
+                    error: error.message
+                });
+            } finally {
+                isGenerating = false;
+                updateSendButton();
+            }
+        }
+
+        function updateSendButton() {
+            const hasContent = elements.messageInput.value.trim() || pendingImages.length > 0;
+            elements.sendBtn.disabled = !hasContent || isGenerating;
+        }
+
+        function handleImageUpload(files) {
+            const fileArray = Array.from(files);
+            
+            fileArray.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    pendingImages.push(e.target.result);
+                    renderImagePreviews();
+                    updateSendButton();
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderImagePreviews() {
+            if (pendingImages.length === 0) {
+                elements.imagePreviewBar.classList.add('hidden');
+                return;
+            }
+            
+            elements.imagePreviewBar.classList.remove('hidden');
+            elements.imagePreviewBar.innerHTML = pendingImages.map((img, index) => `
+                <div class="relative group">
+                    <img src="${img}" class="preview-thumb">
+                    <button class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            onclick="removePendingImage(${index})">×</button>
+                </div>
+            `).join('');
+        }
+
+        function clearImagePreviews() {
+            pendingImages = [];
+            renderImagePreviews();
+        }
+
+        window.removePendingImage = function(index) {
+            pendingImages.splice(index, 1);
+            renderImagePreviews();
+            updateSendButton();
+        };
+
+        window.openImageModal = function(url) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4';
+            modal.innerHTML = `
+                <div class="absolute inset-0 bg-black/90" onclick="this.parentElement.remove()"></div>
+                <img src="${url}" class="relative max-w-full max-h-full object-contain rounded-lg">
+                <button class="absolute top-4 right-4 p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white"
+                        onclick="this.parentElement.remove()">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            `;
+            document.body.appendChild(modal);
+        };
+
+        async function testConnection() {
+            elements.testConnectionBtn.disabled = true;
+            elements.testConnectionBtn.textContent = '测试中...';
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${settings.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'wan2.7-image',
+                        input: {
+                            messages: [{
+                                role: 'user',
+                                content: [{ text: 'test' }]
+                            }]
+                        }
+                    })
+                });
+                
+                if (response.ok || response.status === 400) {
+                    elements.connectionStatus.className = 'text-xs px-3 py-1 rounded-full bg-green-500/20 text-green-400';
+                    elements.connectionStatus.textContent = '已连接';
+                    return true;
+                } else if (response.status === 401) {
+                    elements.connectionStatus.className = 'text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400';
+                    elements.connectionStatus.textContent = '认证失败';
+                    return false;
+                }
+            } catch (error) {
+                elements.connectionStatus.className = 'text-xs px-3 py-1 rounded-full bg-red-500/20 text-red-400';
+                elements.connectionStatus.textContent = '连接失败';
+                return false;
+            } finally {
+                elements.testConnectionBtn.disabled = false;
+                elements.testConnectionBtn.textContent = '测试连接';
+            }
+        }
+
+        elements.newSessionBtn.addEventListener('click', createSession);
+
+        elements.settingsBtn.addEventListener('click', () => {
+            elements.settingsModal.classList.remove('hidden');
+        });
+
+        elements.closeSettings.addEventListener('click', () => {
+            elements.settingsModal.classList.add('hidden');
+        });
+
+        elements.modalOverlay.addEventListener('click', () => {
+            elements.settingsModal.classList.add('hidden');
+        });
+
+        elements.saveSettingsBtn.addEventListener('click', () => {
+            settings.apiKey = elements.apiKeyInput.value;
+            settings.model = elements.modelSelect.value;
+            settings.size = elements.sizeSelect.value;
+            settings.count = parseInt(elements.countSelect.value);
+            
+            elements.currentModelBadge.textContent = settings.model;
+            saveToStorage();
+            elements.settingsModal.classList.add('hidden');
+        });
+
+        elements.testConnectionBtn.addEventListener('click', testConnection);
+
+        elements.adminBtn.addEventListener('click', () => {
+            elements.adminModal.classList.remove('hidden');
+        });
+
+        elements.closeAdmin.addEventListener('click', () => {
+            elements.adminModal.classList.add('hidden');
+        });
+
+        elements.adminOverlay.addEventListener('click', () => {
+            elements.adminModal.classList.add('hidden');
+        });
+
+        document.querySelectorAll('[data-admin-tab]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.adminTab;
+                
+                document.querySelectorAll('[data-admin-tab]').forEach(b => {
+                    b.className = 'px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600';
+                });
+                btn.className = 'tab-btn-active px-4 py-2 rounded-lg text-sm font-medium';
+                
+                document.querySelectorAll('.admin-tab-content').forEach(content => {
+                    content.classList.add('hidden');
+                });
+                document.getElementById(tab + 'Tab').classList.remove('hidden');
+            });
+        });
+
+        elements.resetPromptRules.addEventListener('click', () => {
+            elements.promptRules.value = DEFAULT_PROMPT_RULES;
+        });
+
+        elements.savePromptRules.addEventListener('click', () => {
+            adminSettings.enableOptimization = elements.enableOptimization.checked;
+            adminSettings.optimizerModel = elements.optimizerModel.value;
+            adminSettings.promptRules = elements.promptRules.value;
+            saveToStorage();
+            alert('提示词优化规则已保存');
+        });
+
+        elements.testOptimizeBtn.addEventListener('click', async () => {
+            const testPrompt = prompt('请输入测试提示词:', '一碗面');
+            if (!testPrompt) return;
+            
+            elements.testOptimizeBtn.disabled = true;
+            elements.testOptimizeBtn.textContent = '测试中...';
+            
+            try {
+                const optimized = await optimizePrompt(testPrompt);
+                elements.testOptimizeResult.classList.remove('hidden');
+                elements.testOptimizeResult.querySelector('div').innerHTML = `
+                    <p class="text-slate-400 mb-2">原始提示词：</p>
+                    <p class="text-slate-300 mb-4">${testPrompt}</p>
+                    <p class="text-slate-400 mb-2">优化后：</p>
+                    <p class="text-indigo-300">${optimized}</p>
+                `;
+            } catch (error) {
+                alert('测试失败: ' + error.message);
+            } finally {
+                elements.testOptimizeBtn.disabled = false;
+                elements.testOptimizeBtn.textContent = '测试优化';
+            }
+        });
+
+        elements.saveModelConfig.addEventListener('click', () => {
+            adminSettings.defaultImageModel = elements.defaultImageModel.value;
+            adminSettings.defaultSize = elements.defaultSize.value;
+            adminSettings.defaultCount = parseInt(elements.defaultCount.value);
+            
+            settings.model = adminSettings.defaultImageModel;
+            settings.size = adminSettings.defaultSize;
+            settings.count = adminSettings.defaultCount;
+            
+            applySettings();
+            saveToStorage();
+            alert('模型配置已保存');
+        });
+
+        elements.uploadImageBtn.addEventListener('click', () => {
+            elements.imageInput.click();
+        });
+
+        elements.imageInput.addEventListener('change', (e) => {
+            handleImageUpload(e.target.files);
+            e.target.value = '';
+        });
+
+        elements.messageInput.addEventListener('input', () => {
+            const len = elements.messageInput.value.length;
+            elements.charCounter.textContent = `${len} / 5000`;
+            
+            elements.messageInput.style.height = 'auto';
+            elements.messageInput.style.height = Math.min(elements.messageInput.scrollHeight, 150) + 'px';
+            
+            updateSendButton();
+        });
+
+        elements.messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        elements.sendBtn.addEventListener('click', sendMessage);
+
+        document.querySelectorAll('.quick-prompt').forEach((btn, index) => {
+            btn.addEventListener('click', () => {
+                const prompts = [
+                    '一只可爱的橘猫坐在窗台上，阳光透过窗户洒在它身上，温馨的室内场景',
+                    '请先上传一张图片，然后描述你想要如何编辑它',
+                    '请先上传一张图片，我将帮你转换为油画风格',
+                    '请上传多张图片，我将帮你融合它们的特点'
+                ];
+                elements.messageInput.value = prompts[index];
+                elements.messageInput.dispatchEvent(new Event('input'));
+                elements.messageInput.focus();
+            });
+        });
+
+        elements.chatContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            elements.chatContainer.classList.add('generating');
+        });
+
+        elements.chatContainer.addEventListener('dragleave', () => {
+            elements.chatContainer.classList.remove('generating');
+        });
+
+        elements.chatContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            elements.chatContainer.classList.remove('generating');
+            handleImageUpload(e.dataTransfer.files);
+        });
+
+        loadFromStorage();
+        testConnection();
+    </script>
+</body>
+</html>
